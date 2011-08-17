@@ -1,3 +1,9 @@
+v0.0.82. Force search to run if searchdb doesnt exist yet
+v0.0.81. Forced update
+v0.0.8. Fix bug that prevented installed db from being created if it didn't exist
+v0.0.7. Fix bug that prevented searchdb from being created if it didn't exist
+v0.0.6. We search ALL of the github repos now instead of just first 100
+v0.0.5. Bundles can now be installed with a full github repo path - avoid searching issues
 v0.0.4. Totally doing this wrong - Gem should be signed now
 v0.0.3. Totally doing this wrong - Gem should be signed now
 v0.0.2. Gemspec updated.  Added install message with usage instructions
