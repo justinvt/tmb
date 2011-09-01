@@ -7,6 +7,8 @@ module TM
     end
 
     def self.run(args)
+      `mkdir -p #{TM::SettingsDirectory}`
+      `touch #{TM::Bundles.searchdb_file}`
       if args[0].nil?
         help
         return 

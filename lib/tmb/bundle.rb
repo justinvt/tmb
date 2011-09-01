@@ -6,9 +6,10 @@ module TM
   Justify = 15
   Delimiter = ": "
   BaseBundleDirectory = "/Library/Application Support/TextMate/Bundles"
-  UserBundleDirectory = "#{ENV['HOME']}/Library/Application\ Support/TextMate/Bundles"
-  BundleDirectory = Dir.entries(BaseBundleDirectory).size >  Dir.entries(UserBundleDirectory).size ? BaseBundleDirectory : UserBundleDirectory
-  SettingsDirectory = "/#{ENV['HOME']}/tmb"
+  UserBundleDirectory = "#{ENV['HOME']}/Library/Application Support/TextMate/Bundles"
+  `mkdir -p "#{TM::UserBundleDirectory}"`
+  BundleDirectory = ( File.exist?(BaseBundleDirectory) && Dir.entries(BaseBundleDirectory).size >  Dir.entries(UserBundleDirectory).size ) ? BaseBundleDirectory : UserBundleDirectory
+  SettingsDirectory = "#{ENV['HOME']}/.tmb"
   App = File.basename File.dirname(__FILE__)
   DB = ".tmbdb"
   SearchDB = ".searchdb"

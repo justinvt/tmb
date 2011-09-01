@@ -11,7 +11,7 @@ module TM
       end
 
       def self.searchdb?
-        File.exists?(searchdb_file)
+        File.exists?(searchdb_file) && ( JSON.parse( File.read(@@search_file) ) rescue [] ).size > 0
       end
 
       def initialize(search_terms=nil)
@@ -164,7 +164,7 @@ module TM
           f = File.open(self.class.searchdb_file,File::RDWR|File::CREAT)
           f.close
         end
-        @results = @full_set =  JSON.parse( File.read(@@search_file) )
+        @results = @full_set =  JSON.parse( File.read(@@search_file) ) rescue []
         puts "#{@full_set.size} local results"
         @full_set.each_with_index do |r,i|
           @full_set[i]["search_terms"] = r.values_at("username", "name", "description").join
