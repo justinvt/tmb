@@ -58,7 +58,7 @@ module TM
       def self.socket_error(e, url)
         <<-eos
 
-          #LIB is raising a #EXCEPTION: \033[1m#{e.message}\033[0m
+          #LIB is raising a #EXCEPTION: \033[0m#{e.message}\033[0m
 
           Either \033[1m#HOST\033[0m is currently unavailable or your internet connection is down.
 

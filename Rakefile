@@ -4,13 +4,14 @@ require 'echoe'
 #Echoe.new(File.basename(File.dirname(__FILE__)))
 
 App = "tmb"
-Version = "0.0.95"
+Version = "0.0.96"
 
 Echoe.new(App, Version) do |p|
    p.name    = App
    p.version = Version
    p.author  = "Justin Thibault"
    p.email   = "jvthibault@gmail.com"
+   p.runtime_dependencies = ['json' ]
    p.bin_files = ["tmb"]
 
    p.install_message = <<-eos

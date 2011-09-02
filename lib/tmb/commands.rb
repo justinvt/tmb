@@ -7,7 +7,8 @@ module TM
     end
 
     def self.run(args)
-      `mkdir -p #{TM::SettingsDirectory}`
+      FileUtils.mkdir_p TM::SettingsDirectory unless File.exist?(TM::SettingsDirectory)
+      #`mkdir -p #{TM::SettingsDirectory}`
       `touch #{TM::Bundles.searchdb_file}`
       if args[0].nil?
         help
@@ -34,17 +35,47 @@ module TM
         print "\n\nMake your selection: "
         selection = STDIN.gets.chomp
         result = results[selection.to_i - 1]
-
-      else
+      elsif results.size == 1
         result = results.first
+      else
+        puts "There are no bundles matching #{args[1].bold}"
+        remaining = TM::Bundle.installed_bundle_titles
+        if remaining.size > 0
+          puts "Here are the bundles installed to #{TM::BundleDirectory.bold}:\n\n"
+          self.list
+        else
+          puts "The bundle directory appears to be completely empty."
+        end
+        exit 1
       end
-      puts "\nYou chose #{result}\n\nUninstalling...\n\n"
-      removed = TM::Bundle.uninstall(result)
-      puts "#{result} uninstalled" if removed
+      bundle_name = File.basename(result)
+      bundle_title = bundle_name.gsub(/\.tmbundle$/,'').bold
+      puts "\nThis will uninstall the #{bundle_title} bundle."
+      puts "\nThis can't be undone, aside from reinstalling #{bundle_title} with\n\n    #{TM::App} install #{bundle_title}\n\n"
+      print "Are you sure you want to continue? (Y/n): "
+      confirm = STDIN.gets.chomp
+      confirm_string = "Y"
+      if confirm == confirm_string
+        removed = TM::Bundle.uninstall(result)
+        puts "#{bundle_title} uninstalled successfully." if removed
+        remaining = TM::Bundle.installed_bundle_titles
+        if remaining.size > 0
+          puts "\nHere are the remaining bundles:\n\n"
+          self.list
+        else
+          puts "There are now no remaining bundles."
+        end
+      else
+        puts "\nExiting uninstall (we were looking for #{confirm_string.bold} as a response, and you typed #{confirm.bold})..."
+        puts "The #{bundle_title} bundle remains active."
+      end
     end
 
     def self.list(args=nil)
-      TM::Bundle.list
+      TM::Bundle.installed.each do |bundle|
+        puts File.basename(bundle).gsub(/\.tmbundle$/,'').ljust(40).bold + " (#{File.basename(bundle)})"
+      end
+      #TM::Bundle.list
     end
 
     def self.search_remote(args)
@@ -90,6 +121,18 @@ eos
     def self.local(args=nil)
       puts File.read(TM::Bundles.searchdb_file)
     end
+    
+    def self.update(args)
+      bundle_name = args[1]
+      repo = TM::Bundle.db[bundle_name]["url"] rescue nil
+      if repo.nil?
+        puts "OOPS!!!!  There is no record of installing #{bundle_name}, so updating won't work at this point.\n\n"
+        puts "Running a normal install instead and you may overwrite the existing version if we find one..."
+        self.install(args)
+      else
+        TM::Bundle.new( nil, :repo => repo, :bundle_name => bundle_name ).install(false)
+      end
+    end
 
     def self.install(args)
       if args[1] =~ /^(https|git):\S*\.git$/
@@ -110,11 +153,11 @@ eos
         bundles.each_with_index do |b,i|
           puts b.as_selection(i) + (i==0 ? " (default)" : "").bold
         end
-        print "\n\nMake your selection (hit enter to choose default #{bundles.first.name.bold}): "
+        print "\nMake your selection (hit enter to choose default #{bundles.first.name.bold}): "
         selection = STDIN.gets.chomp
         selection = 1 if selection.nil? or selection == ""
         result = results[selection.to_i - 1]
-        puts "\nYou chose #{selection}: #{result['name']}\n\nInstalling...\n\n"
+        puts "\nYou chose #{selection}: #{result['name']}...\n\n"
         bundle = TM::Bundle.new(result)
         bundle.install
         puts "Bundle installed to #{bundle.destination}"

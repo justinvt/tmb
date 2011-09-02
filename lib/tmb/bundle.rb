@@ -1,10 +1,14 @@
+require 'fileutils'
 module TM
+  
+  include FileUtils
 
   TextWrap = 78
   IndentSpacing = 10
   Indent    = (" " * IndentSpacing)
   Justify = 15
   Delimiter = ": "
+  BundleListPrefix = "  * "
   BaseBundleDirectory = "/Library/Application Support/TextMate/Bundles"
   UserBundleDirectory = "#{ENV['HOME']}/Library/Application Support/TextMate/Bundles"
   `mkdir -p "#{TM::UserBundleDirectory}"`
@@ -54,6 +58,13 @@ module TM
   # you'd like to destroy
 
   \033[1m#{App} uninstall json\033[0m
+    
+  # Update bundle named 'json' if we can find it in your installation records.
+  # If we can't find a record, we will attempt to run the normal installation routine
+  # for the bundle name you entered.  If #{App} has degenerate records, you will still
+  # have the option to overwrite the existing version during the normal install process.
+
+  \033[1m#{App} update json\033[0m
 
 
   # Tell textmate (if it's open) to reload its bundle information,
@@ -110,9 +121,18 @@ module TM
     end
 
     def initialize(result=nil, options={})
-      @before_hooks =      @result     = result
-      @repository = options[:repo] || git_repo
-      before(:git_install_script, :update_db)
+      if result.nil?
+        @repository = options[:repo]
+        @result = {
+          "name" => self.class.name_from_repo(@repository), 
+          "bundle_name" => options[:bundle_name],
+          "url" => @repository 
+        }
+      else
+        @before_hooks =      @result     = result
+        @repository = git_repo
+      end
+      #before(:git_install_script, :update_db)
     end
 
     def self.installed
@@ -122,25 +142,46 @@ module TM
     def self.db_filename
       File.join(SettingsDirectory, DB)
     end
+    
+    def self.existing_installdb
+      ( YAML.load File.read( self.db_filename ) rescue nil ) || {}
+    end
 
     def self.db(settings=nil)
+      #puts "with settings...#{settings.inspect}"
+      if !File.exist?(db_filename)
+        puts "DB doesn't exist (#{db_filename}).  Skipping addition of bundle to install db."
+        return 
+      end
       f = File.open(db_filename,File::RDWR|File::CREAT)
-      unless settings.nil? or settings.class.name =~ /^Hash/
-        parsed = settings.merge(YAML::parse( f.read ) || {})
+      unless settings.nil? or !( settings.class.name =~ /^Hash/ )
+        parsed = settings.merge self.existing_installdb
         f.puts YAML::dump( parsed )
       end
       db_content = f.read
       f.close
-      YAML::parse( db_content )
+      self.existing_installdb
     end
 
     def self.info
       File.read(db_filename)
     end
+    
+    def self.installed_bundle_filenames
+      installed.map do |b|
+        File.basename(b)
+      end
+    end
+    
+      def self.installed_bundle_titles
+      installed.map do |b|
+        TM::BundleListPrefix + File.basename(b).gsub(/\.tmbundle$/,'')
+      end
+    end
 
     def self.list
       installed.each do |b|
-        puts File.basename(b)
+        puts  TM::BundleListPrefix + File.basename(b)
       end
     end
 
@@ -149,12 +190,21 @@ module TM
     end
 
     def self.uninstall(bundle)
+      if bundle.nil? || bundle == ""
+        puts "We couldn't find an appropriate bundle to uninstall...Exiting"
+        return 
+      end
       bundle_dir = File.basename(bundle)
-      FileUtils.rm_r(File.join(BundleDirectory, bundle_dir))
+      #{}` rm -Rf #{ File.join(BundleDirectory, bundle_dir) }`
+      FileUtils.rm_r File.join(BundleDirectory, bundle_dir)
     end
 
     def short_result
       {:description => result["description"], :repo => repository }
+    end
+    
+    def self.name_from_repo(repository_url)
+      repository_url.scan(/(\w\-0-9)\.git$/)
     end
 
     def name
@@ -162,7 +212,7 @@ module TM
     end
 
     def bundle_name
-      name.gsub("tmbundle",'').gsub(/^[[:punct:]]+|[[:punct:]]+$/,'')
+      result["bundle_name"] || name.gsub("tmbundle",'').gsub(/^[[:punct:]]+|[[:punct:]]+$/,'')
     end
 
     def git_repo
@@ -335,7 +385,14 @@ module TM
 
     def hash(digester="sha1")
       if git_repo?
-        op = File.read(File.join(destination,".git","refs","heads","master"))
+        master_file = File.join(destination,".git","refs","heads","master")
+        begin
+          op = File.read(master_file)
+        rescue => e
+          puts "An error occurred while attempting to read #{master_file}...skipping\n   #{e.message}"
+          `ls "#{ File.dirname(master_file) }"`
+          op = ""
+        end
       else
         op = IO.popen("cat `ls -F #{destination} | grep -v -E '\/$'` | #{digester} | tr '\n' ''").read
       end
@@ -343,10 +400,11 @@ module TM
     end
 
     def db_hash
-      { name => {"url" => repository, "dir" => destination, "installed" => Time.now.to_s, "sha1" => hash}}
+      { bundle_name => {"url" => repository, "dir" => destination, "installed" => Time.now.to_s, "sha1" => hash}}
     end
 
     def update_db
+      puts "Updating install db"
       self.class.db(db_hash)
     end
 
@@ -358,13 +416,13 @@ module TM
       File.exists?(destination)
     end
 
-    def install
-      if bundle_exists?
+    def install(prompt_on_reinstall=true)
+      if bundle_exists? && prompt_on_reinstall
         puts "That bundle already appears to be installed at #{destination}.\n\nReinstall? [Yn]"
         answer = STDIN.gets.chomp
-        return if answer == "n"
+        exit if answer == "n"
       end
-      puts "Installing from #{@repository}"
+      puts "#{prompt_on_reinstall ? 'Installing' : 'Updating bundle'} from #{@repository}"
       run_script(:git_install_script)
       puts "Bundle installed to #{destination}.  \n\nReloading bundles..."
       run_script(:bundle_reload_script)
